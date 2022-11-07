@@ -1,12 +1,44 @@
 <?php
-if(isset($_POST['submit'])) {
-	$conn = new mysqli(
-		'db403-mysql', 'root', 'P@ssw0rd', 'northwind'
-	);
-	if($conn->connect_errno) {
-		die($conn->connect_error);
+session_start();
+if(isset($_POST['submit']) || isset($_POST['login'])) {
+	include 'db_connect.php';
+	$error = null;
+	if(isset($_POST['submit'])) {
+		$hash = password_hash($_POST['pswd'], PASSWORD_DEFAULT);
+		$sql = "insert into accounts(email, fname, lname, passw)";
+		$sql .= " values('{$_POST['email']}', '{$_POST['fname']}'";
+		$sql .= ", '{$_POST['lname']}', '$hash')";
+		try {
+			$conn->query($sql);
+			$_SESSION['email'] = $_POST['email'];
+			header('location: welcome.php');
+			exit();
+		}
+		catch(Exception $e) {
+			$error = $e->getMessage();
+		}
 	}
-	echo 'Connected';
+	if(isset($_POST['login'])) {
+		$sql = 'select email, passw from accounts where email=?';
+		$stmt = $conn->prepare($sql);
+		$stmt->bind_param('s', $_POST['email']);
+		try {
+			$stmt->execute();
+			$result = $stmt->get_result();
+			if($row = $result->fetch_assoc()) {
+				if(password_verify($_POST['pswd'], $row['passw'])) {
+					$_SESSION['email'] = $_POST['email'];
+					header('location: welcome.php');
+					exit();	
+				}
+			}
+			$error = 'Invalid email or password!';
+		}
+		catch(Exception $e) {
+			echo $e->getMessage();
+		}
+	}
+	$conn->close();
 }
 ?>
 <!DOCTYPE html>
@@ -34,15 +66,20 @@ if(isset($_POST['submit'])) {
 			</div>
 
 			<div class="login">
-				<form>
+				<form action="signin.php" method="post">
 					<label for="chk" aria-hidden="true">Login</label>
 					<input type="email" name="email" placeholder="Email" required="">
 					<input type="password" name="pswd" placeholder="Password" required="">
-					<button>Login</button>
+					<button type="submit" name="login">Login</button>
 				</form>
 			</div>
 	</div>
 	<script>
+<?php
+if($error) {
+	echo "alert(\"$error\");";
+}
+?>
 		function checkPassword() {
 			const pass1 = document.getElementById('pass1').value;
 			const pass2 = document.getElementById('pass2').value;
